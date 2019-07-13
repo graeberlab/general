@@ -10,8 +10,9 @@
 #' @param reverse.sign reverse sign of the output pval table, default F
 #' @export
 
-lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.frame=NULL,drug.name="TRE515",
-                                    output.file="./categorical.with.signedlog10pvals.txt",percent.zeros=1,keep.na=T,reverse.sign=F) {
+
+lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.frame=NULL,drug.name="TRE515",name.frame=NULL,
+                                              output.file="./categorical.with.signedlog10pvals.txt",percent.zeros=1,keep.na=T,reverse.sign=F) {
   common_samps=intersect(colnames(categorical.frame)[-1],colnames(drug.frame)[-1])
   colnames(categorical.frame)[1]="gene"
   colnames(drug.frame)[1]='drug'
@@ -23,19 +24,35 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
   myidx=  !apply(categorical.frame[,-1],1, function (x) ((sum(na.omit(x) == 0))/length(na.omit(x)) >= percent.zeros))
   categorical.frame= categorical.frame[myidx,]
 
-  pval = as.data.frame(matrix(nrow = nrow(categorical.frame), ncol = 3),stringsAsFactors = F)
-  colnames(pval)[1]="gene"
-  colnames(pval)[2]=paste0(drug.name,"_log10pval")
-  colnames(pval)[3]="nmuts"
-  pval$nmuts=rowSums(categorical.frame[,-1])
-  pval$gene = categorical.frame[,1]
+
   if(!is.null(type.frame)){
     colnames(type.frame)[1]="sample"
     colnames(type.frame)[2]="type"
+
+    pval = as.data.frame(matrix(nrow = nrow(categorical.frame), ncol = 5),stringsAsFactors = F)
+    colnames(pval)[1]="gene"
+    colnames(pval)[2]="full.name"
+    colnames(pval)[3]="beta"
+    colnames(pval)[4]=paste0(drug.name,"_log10pval")
+    colnames(pval)[5]="nmuts"
+    pval$nmuts=rowSums(categorical.frame[,-1])
+    pval$gene = categorical.frame[,1]
+    pval$full.name=name.frame$name[match(pval$gene, name.frame$symbol)]
+
+  } else {
+    pval = as.data.frame(matrix(nrow = nrow(categorical.frame), ncol = 5),stringsAsFactors = F)
+    colnames(pval)[1]="gene"
+    colnames(pval)[2]="full.name"
+    colnames(pval)[3]="beta"
+    colnames(pval)[4]=paste0(drug.name,"_log10pval")
+    colnames(pval)[5]="nmuts"
+    pval$nmuts=rowSums(categorical.frame[,-1])
+    pval$gene = categorical.frame[,1]
+    pval$full.name=name.frame$name[match(pval$gene, name.frame$symbol)]
   }
 
 
-  do.categorical.lm= function(i){
+  do.categorical.lm= function(i,my.output=c(NA,NA)){
     print(i)
     gene = categorical.frame[i,]
     tgene = data.frame(reshape2::dcast(reshape2::melt(gene, id.vars = "gene"), variable ~ gene),stringsAsFactors=F)
@@ -60,59 +77,67 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
     if(!is.null(type.frame)){
       cmerge$type=as.character(cmerge$type)
     }
-    if(  sum(((colSums(is.na(cmerge))  == nrow(cmerge)) > 0)) >=1) { #if all NAs for any drug or gene skip
-      my.pval=NA
-      next
-    }
+    # if(  sum(((colSums(is.na(cmerge))  == nrow(cmerge)) > 0)) >=1) { #if all NAs for any drug or gene skip
+    #   my.pval=NA
+    #   return(my.pval)
+    # }
 
 
 
     tryCatch({ #if errors skip, usually because there arent enough lines with values for both measurements to run lm
       if(!is.null(type.frame)){
         cmerge$type=as.character(cmerge$type)
-        tstat = sign(summary(lm(drug ~ gene + type , data = cmerge,na.action="na.omit"))$coefficients[2,3])
-        pv = -1*log10(summary(lm(drug ~ gene + type , data = cmerge,na.action="na.omit"))$coefficients[2,4])
+        model.summary=summary(lm(drug ~ gene + type , data = cmerge,na.action="na.omit"))$coefficients
+        beta = model.summary[2,1]
+        tstat = sign(model.summary[2,3])
+        pv = -1*log10(model.summary[2,4])
         my.pval = tstat * pv
+        my.output=c(beta,my.pval)
       } else {
-        tstat = sign(summary(lm(drug ~ gene , data = cmerge,na.action="na.omit"))$coefficients[2,3])
-        pv = -1*log10(summary(lm(drug ~ gene , data = cmerge,na.action="na.omit"))$coefficients[2,4])
+        model.summary=summary(lm(drug ~ gene , data = cmerge,na.action="na.omit"))$coefficients
+        beta = model.summary[2,1]
+        tstat = sign(model.summary[2,3])
+        pv = -1*log10(model.summary[2,4])
         my.pval = tstat * pv
+        my.output=c(beta,my.pval)
       }
 
     }, error = function (e) {
       print (e);
       my.pval = NA
+      my.output=c(NA,NA)
     })
-    return(my.pval)
+
+    return(my.output)
   }
 
 
   library(parallel)
   n_core <- detectCores()
-  cl <- makeCluster(n_core-1)
+  cl <- makeCluster(n_core-1,outfile="log.txt")
   clusterExport(cl,varlist=c('do.categorical.lm',ls()),envir=environment())
-  pval.vect=parSapply(cl = cl,X = 1:nrow(categorical.frame), FUN = function(x) do.categorical.lm(i=x))
-  pval[,2]=pval.vect
+  output.vect=parSapply(cl = cl,X = 1:nrow(categorical.frame), FUN = function(x) do.categorical.lm(i=x))
+  pval[,3:4]=output.vect
   stopCluster(cl)
 
 
   if(reverse.sign==T){
-    numeric_cols <- vapply(pval, is.numeric, logical(1))
-    pval[, numeric_cols] <- lapply(df[, numeric_cols, drop = FALSE],
-                                   function(x) x * -1)
+    #numeric_cols <- vapply(pval, is.numeric, logical(1))
+    pval[, 3:4] <- -1* pval[,3:4]
   }
 
   if (keep.na==F){
-  pval=na.omit(pval)
+    pval=na.omit(pval,cols=c(3,4))
   }
 
 
-  pval=pval[order(pval[,2],decreasing= F),]
+  pval=pval[order(pval[,4],decreasing= F),]
   write.table(pval,output.file,quote=F,row.names=F,sep="\t")
 
   return(pval)
 
 }
+
 
 
 
