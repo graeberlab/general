@@ -35,7 +35,7 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
     colnames(pval)[3]="beta"
     colnames(pval)[4]=paste0(drug.name,"_log10pval")
     colnames(pval)[5]="nmuts"
-    pval$nmuts=rowSums(categorical.frame[,-1])
+    #pval$nmuts=rowSums(categorical.frame[,-1])
     pval$gene = categorical.frame[,1]
     pval$full.name=name.frame$name[match(pval$gene, name.frame$symbol)]
 
@@ -46,7 +46,7 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
     colnames(pval)[3]="beta"
     colnames(pval)[4]=paste0(drug.name,"_log10pval")
     colnames(pval)[5]="nmuts"
-    pval$nmuts=rowSums(categorical.frame[,-1])
+    # pval$nmuts=rowSums(categorical.frame[,-1])
     pval$gene = categorical.frame[,1]
     pval$full.name=name.frame$name[match(pval$gene, name.frame$symbol)]
   }
@@ -73,10 +73,12 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
     cmerge=na.omit(cmerge)
     cmerge$drug=as.numeric(cmerge$drug)
     cmerge$sample=as.character(cmerge$sample)
-    cmerge$gene=as.character(cmerge$gene)
+    cmerge$gene=as.numeric(cmerge$gene)
     if(!is.null(type.frame)){
       cmerge$type=as.character(cmerge$type)
     }
+    my.muts=sum(cmerge$gene,na.rm=T)
+    if(my.muts <=1) {return( c(NA,NA,my.muts))}
     # if(  sum(((colSums(is.na(cmerge))  == nrow(cmerge)) > 0)) >=1) { #if all NAs for any drug or gene skip
     #   my.pval=NA
     #   return(my.pval)
@@ -87,28 +89,36 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
     tryCatch({ #if errors skip, usually because there arent enough lines with values for both measurements to run lm
       if(!is.null(type.frame)){
         cmerge$type=as.character(cmerge$type)
+
+
+        #cmerge$gene=factor(cmerge$gene, levels= c(0,1))
+
         model.summary=summary(lm(drug ~ gene + type , data = cmerge,na.action="na.omit"))$coefficients
         beta = model.summary[2,1]
         tstat = sign(model.summary[2,3])
         pv = -1*log10(model.summary[2,4])
         my.pval = tstat * pv
-        my.output=c(beta,my.pval)
+        my.output=c(beta,my.pval,my.muts)
       } else {
+        cmerge$type=as.character(cmerge$type)
+
+        #cmerge$gene=factor(cmerge$gene, levels= c(0,1))
         model.summary=summary(lm(drug ~ gene , data = cmerge,na.action="na.omit"))$coefficients
         beta = model.summary[2,1]
         tstat = sign(model.summary[2,3])
         pv = -1*log10(model.summary[2,4])
         my.pval = tstat * pv
-        my.output=c(beta,my.pval)
+        my.output=c(beta,my.pval,my.muts)
       }
-
+      return(my.output)
     }, error = function (e) {
       print (e);
-      my.pval = NA
-      my.output=c(NA,NA)
+
+      my.output=c(NA,NA,NA)
+      return(my.output)
     })
 
-    return(my.output)
+
   }
 
 
@@ -117,7 +127,7 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
   cl <- makeCluster(n_core-1,outfile="log.txt")
   clusterExport(cl,varlist=c('do.categorical.lm',ls()),envir=environment())
   output.vect=parSapply(cl = cl,X = 1:nrow(categorical.frame), FUN = function(x) do.categorical.lm(i=x))
-  pval[,3:4]=output.vect
+  pval[,c(3:5)]=t(output.vect)
   stopCluster(cl)
 
 
@@ -131,7 +141,7 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
   }
 
 
-  pval=pval[order(pval[,4],decreasing= F),]
+ # pval=pval[order(pval[,4],decreasing= F),]
   write.table(pval,output.file,quote=F,row.names=F,sep="\t")
 
   return(pval)
