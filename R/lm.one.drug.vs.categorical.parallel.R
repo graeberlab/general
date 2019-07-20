@@ -12,7 +12,7 @@
 
 
 lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.frame=NULL,drug.name="TRE515",name.frame=NULL,
-                                              output.file="./categorical.with.signedlog10pvals.txt",percent.zeros=1,keep.na=T,reverse.sign=F) {
+                                              output.file="./categorical.with.signedlog10pvals.txt",percent.zeros=1,keep.na=T,reverse.sign=F,covar.frame=NULL) {
   common_samps=intersect(colnames(categorical.frame)[-1],colnames(drug.frame)[-1])
   colnames(categorical.frame)[1]="gene"
   colnames(drug.frame)[1]='drug'
@@ -69,6 +69,9 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
     if(!is.null(type.frame)){
       cmerge=dplyr::inner_join(cmerge,type.frame,by= "sample")
     }
+    if(!is.null(covar.frame)){
+      cmerge=dplyr::inner_join(cmerge,covar.frame,by= "sample")
+    }
 
     cmerge=na.omit(cmerge)
     cmerge$drug=as.numeric(cmerge$drug)
@@ -89,9 +92,18 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
     tryCatch({ #if errors skip, usually because there arent enough lines with values for both measurements to run lm
       if(!is.null(type.frame)){
         cmerge$type=as.character(cmerge$type)
+        if(!is.null(covar.frame)){
+          model.summary=summary(lm(drug ~ gene + type + covar1 , data = cmerge,na.action="na.omit"))$coefficients
+          beta = model.summary[2,1]
+          tstat = sign(model.summary[2,3])
+          pv = -1*log10(model.summary[2,4])
+          my.pval = tstat * pv
+          my.output=c(beta,my.pval,my.muts)
 
 
-        #cmerge$gene=factor(cmerge$gene, levels= c(0,1))
+
+        } else{
+
 
         model.summary=summary(lm(drug ~ gene + type , data = cmerge,na.action="na.omit"))$coefficients
         beta = model.summary[2,1]
@@ -99,9 +111,7 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
         pv = -1*log10(model.summary[2,4])
         my.pval = tstat * pv
         my.output=c(beta,my.pval,my.muts)
-      } else {
-        cmerge$type=as.character(cmerge$type)
-
+      }} else {
         #cmerge$gene=factor(cmerge$gene, levels= c(0,1))
         model.summary=summary(lm(drug ~ gene , data = cmerge,na.action="na.omit"))$coefficients
         beta = model.summary[2,1]
