@@ -19,7 +19,6 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
   drug.frame=drug.frame[,c("drug",common_samps)]
   categorical.frame=categorical.frame[,c("gene",common_samps)]
   categorical.frame$gene=gsub(x =categorical.frame$gene,pattern = " ",replacement = "" )
-
   categorical.frame=categorical.frame[apply(categorical.frame[,-1],1,function(x) var(x,na.rm=T)) >0,]
   myidx=  !apply(categorical.frame[,-1],1, function (x) ((sum(na.omit(x) == 0))/length(na.omit(x)) >= percent.zeros))
   categorical.frame= categorical.frame[myidx,]
@@ -38,7 +37,7 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
     #pval$nmuts=rowSums(categorical.frame[,-1])
     pval$gene = categorical.frame[,1]
     pval$full.name=name.frame$name[match(pval$gene, name.frame$symbol)]
-
+    rownames(categorical.frame) = NULL #reset indexes
   } else {
     pval = as.data.frame(matrix(nrow = nrow(categorical.frame), ncol = 5),stringsAsFactors = F)
     colnames(pval)[1]="gene"
