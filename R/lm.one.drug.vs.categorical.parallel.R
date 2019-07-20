@@ -52,7 +52,7 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
   }
 
 
-  do.categorical.lm= function(i,my.output=c(NA,NA)){
+  do.categorical.lm= function(i,my.output=c(NA,NA,NA)){
     print(i)
     gene = categorical.frame[i,]
     tgene = data.frame(reshape2::dcast(reshape2::melt(gene, id.vars = "gene"), variable ~ gene),stringsAsFactors=F)
@@ -78,7 +78,7 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
       cmerge$type=as.character(cmerge$type)
     }
     my.muts=sum(cmerge$gene,na.rm=T)
-    if(my.muts <=1) {return( c(NA,NA,my.muts))}
+   # if(my.muts <=1) {return( c(NA,NA,my.muts))} # dont return 1 mutation versions.
     # if(  sum(((colSums(is.na(cmerge))  == nrow(cmerge)) > 0)) >=1) { #if all NAs for any drug or gene skip
     #   my.pval=NA
     #   return(my.pval)
