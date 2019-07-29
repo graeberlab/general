@@ -8,10 +8,11 @@
 #' @param percent.zeros remove rows that have more than this percent of zeros  0 to 1 scale.  0.98 (98 percent) is default
 #' @param keep.na keep genes with NA in the output. default T
 #' @param reverse.sign reverse sign of the output pval table, default F
+#' @param ncores number of cores to use (default is 4)
 #' @export
 
 
-lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.frame=NULL,drug.name="TRE515",name.frame=NULL,
+lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.frame=NULL,drug.name="TRE515",name.frame=NULL,ncores=4,
                                               output.file="./categorical.with.signedlog10pvals.txt",percent.zeros=1,keep.na=T,reverse.sign=F,covar.frame=NULL) {
   common_samps=intersect(colnames(categorical.frame)[-1],colnames(drug.frame)[-1])
   colnames(categorical.frame)[1]="gene"
@@ -132,8 +133,9 @@ lm.one.drug.vs.categorical.parallel=function (categorical.frame,drug.frame,type.
 
 
   library(parallel)
-  n_core <- detectCores()
-  cl <- makeCluster(n_core-1,outfile="log.txt")
+  n_core <- ncores
+
+  cl <- makeCluster(n_core,outfile="log.txt")
   clusterExport(cl,varlist=c('do.categorical.lm',ls()),envir=environment())
   output.vect=parSapply(cl = cl,X = 1:nrow(categorical.frame), FUN = function(x) do.categorical.lm(i=x))
   pval[,c(3:5)]=t(output.vect)
