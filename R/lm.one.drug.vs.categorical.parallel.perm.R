@@ -151,9 +151,9 @@ lm.one.drug.vs.categorical.parallel.perm=function (categorical.frame,drug.frame,
 
 
  # pval=pval[order(pval[,4],decreasing= F),]
-  #write.table(pval,output.file,quote=F,row.names=F,sep="\t")
+  write.table(pval,output.file,quote=F,row.names=F,sep="\t")
 
-  return(pval)
+  #return(pval)
 
 }
 
